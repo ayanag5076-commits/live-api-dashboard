@@ -4,17 +4,70 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live API Status Dashboard</title>
-    <script src="https://tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans p-8">
     <div class="max-w-4xl mx-auto">
         <h1 class="text-3xl font-bold mb-6 text-center text-indigo-400">System API Status Monitor</h1>
         <div class="bg-gray-800 rounded-lg shadow p-6">
-            <h2 class="text-xl font-semibold mb-4 text-gray-300">Monitored Endpoints</h2>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-gray-300">Monitored Endpoints</h2>
+                <span id="updated" class="text-sm text-gray-500"></span>
+            </div>
             <div id="dashboard" class="space-y-4">
                 <p class="text-gray-400 italic">Run monitor.py to generate live status data...</p>
             </div>
         </div>
     </div>
+
+    <script>
+        const STYLES = {
+            Online:   "bg-green-500/20 text-green-400",
+            Degraded: "bg-yellow-500/20 text-yellow-400",
+            Offline:  "bg-red-500/20 text-red-400"
+        };
+
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        async function loadStatus() {
+            const dashboard = document.getElementById("dashboard");
+            try {
+                const res = await fetch("status.json", { cache: "no-store" });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const results = await res.json();
+
+                dashboard.innerHTML = results.map(r => `
+                    <div class="flex items-center justify-between bg-gray-700 rounded-md p-4">
+                        <div>
+                            <p class="font-semibold">${escapeHtml(r.name)}</p>
+                            <p class="text-sm text-gray-400">${escapeHtml(r.url)}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-3 py-1 rounded-full text-sm font-medium ${STYLES[r.status] || STYLES.Offline}">
+                                ${escapeHtml(r.status)}
+                            </span>
+                            <p class="text-sm text-gray-400 mt-1">
+                                ${r.status === "Offline" ? "No response" : escapeHtml(r.latency_ms) + " ms"}
+                            </p>
+                        </div>
+                    </div>
+                `).join("");
+
+                const checked = results.length && results[0].checked_at
+                    ? new Date(results[0].checked_at * 1000).toLocaleTimeString()
+                    : new Date().toLocaleTimeString();
+                document.getElementById("updated").textContent = `Last check: ${checked}`;
+            } catch (err) {
+                dashboard.innerHTML = `<p class="text-red-400 italic">Couldn't load status.json (${escapeHtml(err.message)}). Is monitor.py running and is the page served over HTTP?</p>`;
+            }
+        }
+
+        loadStatus();
+        setInterval(loadStatus, 10000);
+    </script>
 </body>
 </html>
